@@ -70,6 +70,19 @@ PRIVATE int wrap;		/* hardware can wrap? */
 PRIVATE int softscroll;		/* 1 = software scrolling, 0 = hardware */
 PRIVATE unsigned vid_base;	/* base of video ram (0xB000 or 0xB800) */
 PRIVATE int beeping;		/* speaker is beeping? */
+/* Data per a physical screen */
+typedef struct video {
+	unsigned vid_seg;	/* Selector or segment of video RAM
+				 * starts either at 0xb0000, or 0xb80000 */
+	unsigned vid_size;	/* 0x2000 for colour or 0x0800 for mono */
+	unsigned vid_mask;	/* 0x1fff for colour or 0x7fff for mono */
+	unsigned blank_color;	/* attribute byte for a blank char */
+	int	 vid_port;	/* I/O port to access M6845 */
+	int	 wrap;		/* Can hardware wrap? */
+	int	 soft_scroll;	/* Software (== 1) or hardware (== 0) scroll*/
+	long unsigned vid_base;	/* Base video RAM, either 0xb000 or 0xb800 */
+} display_t;
+
 #define scr_width	80	/* # characters on a line */
 #define scr_lines	25	/* # lines on the screen */
 #define scr_size	(80*25)	/* # characters on the screen */
@@ -91,14 +104,14 @@ typedef struct console {
   int *c_esc_parmp;		/* pointer to current escape parameter */
   int c_esc_parmv[MAX_ESC_PARMS];	/* list of escape parameters */
   u16_t c_ramqueue[CONS_RAM_WORDS];	/* buffer for video RAM */
+  display_t * display;		/* pointer to display structure */
 } console_t;
 
 PRIVATE int nr_cons= 1;		/* actual number of consoles */
+PRIVATE int nr_displays = 1;	/* actual number of screens */
+PRIVATE display_t display_table [2];
 PRIVATE console_t cons_table[NR_CONS];
 PRIVATE console_t *curcons;	/* currently visible */
-
-/* Color if using a color controller. */
-#define color	(vid_port == C_6845)
 
 /* Map from ANSI colors to the attributes used by the PC */
 PRIVATE int ansi_colors[8] = {0, 4, 2, 6, 1, 5, 3, 7};
@@ -118,7 +131,7 @@ FORWARD _PROTOTYPE( void do_escape, (console_t *cons, int c)		);
 FORWARD _PROTOTYPE( void flush, (console_t *cons)			);
 FORWARD _PROTOTYPE( void parse_escape, (console_t *cons, int c)		);
 FORWARD _PROTOTYPE( void scroll_screen, (console_t *cons, int dir)	);
-FORWARD _PROTOTYPE( void set_6845, (int reg, unsigned val)		);
+FORWARD _PROTOTYPE( void set_6845, (int reg, unsigned val, display_t * d));
 FORWARD _PROTOTYPE( void stop_beep, (void)				);
 FORWARD _PROTOTYPE( void cons_org0, (void)				);
 FORWARD _PROTOTYPE( void ga_program, (struct sequence *seq) );
@@ -313,10 +326,12 @@ int dir;			/* SCROLL_UP or SCROLL_DOWN */
   if (dir == SCROLL_UP) {
 	/* Scroll one line up in 3 ways: soft, avoid wrap, use origin. */
 	if (softscroll) {
-		vid_vid_copy(cons->c_start + scr_width, cons->c_start, chars);
+		vid_vid_copy(cons->c_start + scr_width, cons->c_start, chars,
+			cons->display);
 	} else
 	if (!wrap && cons->c_org + scr_size + scr_width >= cons->c_limit) {
-		vid_vid_copy(cons->c_org + scr_width, cons->c_start, chars);
+		vid_vid_copy(cons->c_org + scr_width, cons->c_start, chars,
+			cons->display);
 		cons->c_org = cons->c_start;
 	} else {
 		cons->c_org = (cons->c_org + scr_width) & vid_mask;
@@ -325,11 +340,13 @@ int dir;			/* SCROLL_UP or SCROLL_DOWN */
   } else {
 	/* Scroll one line down in 3 ways: soft, avoid wrap, use origin. */
 	if (softscroll) {
-		vid_vid_copy(cons->c_start, cons->c_start + scr_width, chars);
+		vid_vid_copy(cons->c_start, cons->c_start + scr_width, chars,
+			cons->display);
 	} else
 	if (!wrap && cons->c_org < cons->c_start + scr_width) {
 		new_org = cons->c_limit - scr_size;
-		vid_vid_copy(cons->c_org, new_org + scr_width, chars);
+		vid_vid_copy(cons->c_org, new_org + scr_width, chars,
+			cons->display);
 		cons->c_org = new_org;
 	} else {
 		cons->c_org = (cons->c_org - scr_width) & vid_mask;
@@ -338,10 +355,10 @@ int dir;			/* SCROLL_UP or SCROLL_DOWN */
   }
   /* Blank the new line at top or bottom. */
   blank_color = cons->c_blank;
-  mem_vid_copy(BLANK_MEM, new_line, scr_width);
+  mem_vid_copy(BLANK_MEM, new_line, scr_width, cons->display);
 
   /* Set the new video origin. */
-  if (cons == curcons) set_6845(VID_ORG, cons->c_org);
+  if (cons == curcons) set_6845(VID_ORG, cons->c_org, cons->display);
   flush(cons);
 }
 
@@ -360,7 +377,8 @@ register console_t *cons;	/* pointer to console struct */
 
   /* Have the characters in 'ramqueue' transferred to the screen. */
   if (cons->c_rwords > 0) {
-	mem_vid_copy(cons->c_ramqueue, cons->c_cur, cons->c_rwords);
+	mem_vid_copy(cons->c_ramqueue, cons->c_cur, cons->c_rwords,
+		cons->display);
 	cons->c_rwords = 0;
 
 	/* TTY likes to know the current column and if echoing messed up. */
@@ -375,7 +393,7 @@ register console_t *cons;	/* pointer to console struct */
   if (cons->c_row >= scr_lines) cons->c_row = scr_lines - 1;
   cur = cons->c_org + cons->c_row * scr_width + cons->c_column;
   if (cur != cons->c_cur) {
-	if (cons == curcons) set_6845(CURSOR, cur);
+	if (cons == curcons) set_6845(CURSOR, cur, cons->display);
 	cons->c_cur = cur;
   }
 }
@@ -520,7 +538,7 @@ char c;				/* next character in escape sequence */
 			dst = cons->c_org;
 		}
 		blank_color = cons->c_blank;
-		mem_vid_copy(BLANK_MEM, dst, count);
+		mem_vid_copy(BLANK_MEM, dst, count, cons->display);
 		break;
 
 	    case 'K':		/* ESC [sK clears line from cursor */
@@ -542,7 +560,7 @@ char c;				/* next character in escape sequence */
 			dst = cons->c_cur;
 		}
 		blank_color = cons->c_blank;
-		mem_vid_copy(BLANK_MEM, dst, count);
+		mem_vid_copy(BLANK_MEM, dst, count, cons->display);
 		break;
 
 	    case 'L':		/* ESC [nL inserts n lines at cursor */
@@ -554,9 +572,9 @@ char c;				/* next character in escape sequence */
 		src = cons->c_org + cons->c_row * scr_width;
 		dst = src + n * scr_width;
 		count = (scr_lines - cons->c_row - n) * scr_width;
-		vid_vid_copy(src, dst, count);
+		vid_vid_copy(src, dst, count, cons->display);
 		blank_color = cons->c_blank;
-		mem_vid_copy(BLANK_MEM, src, n * scr_width);
+		mem_vid_copy(BLANK_MEM, src, n * scr_width, cons->display);
 		break;
 
 	    case 'M':		/* ESC [nM deletes n lines at cursor */
@@ -568,9 +586,10 @@ char c;				/* next character in escape sequence */
 		dst = cons->c_org + cons->c_row * scr_width;
 		src = dst + n * scr_width;
 		count = (scr_lines - cons->c_row - n) * scr_width;
-		vid_vid_copy(src, dst, count);
+		vid_vid_copy(src, dst, count, cons->display);
 		blank_color = cons->c_blank;
-		mem_vid_copy(BLANK_MEM, dst + count, n * scr_width);
+		mem_vid_copy(BLANK_MEM, dst + count, n * scr_width,
+			cons->display);
 		break;
 
 	    case '@':		/* ESC [n@ inserts n chars at cursor */
@@ -582,9 +601,9 @@ char c;				/* next character in escape sequence */
 		src = cons->c_cur;
 		dst = src + n;
 		count = scr_width - cons->c_column - n;
-		vid_vid_copy(src, dst, count);
+		vid_vid_copy(src, dst, count, cons->display);
 		blank_color = cons->c_blank;
-		mem_vid_copy(BLANK_MEM, src, n);
+		mem_vid_copy(BLANK_MEM, src, n, cons->display);
 		break;
 
 	    case 'P':		/* ESC [nP deletes n chars at cursor */
@@ -596,13 +615,15 @@ char c;				/* next character in escape sequence */
 		dst = cons->c_cur;
 		src = dst + n;
 		count = scr_width - cons->c_column - n;
-		vid_vid_copy(src, dst, count);
+		vid_vid_copy(src, dst, count, cons->display);
 		blank_color = cons->c_blank;
-		mem_vid_copy(BLANK_MEM, dst + count, n);
+		mem_vid_copy(BLANK_MEM, dst + count, n, cons->display);
 		break;
 
 	    case 'm':		/* ESC [nm enables rendition n */
 		switch (value) {
+			int color;
+			color = cons->display->vid_base==C_6845 ? 1 : 0;
 		    case 1:	/* BOLD  */
 			if (color) {
 				/* Can't do bold, so use yellow */
@@ -677,19 +698,20 @@ char c;				/* next character in escape sequence */
 /*===========================================================================*
  *				set_6845				     *
  *===========================================================================*/
-PRIVATE void set_6845(reg, val)
+PRIVATE void set_6845(reg, val, screen)
 int reg;			/* which register pair to set */
 unsigned val;			/* 16-bit value to set it to */
+display_t * screen;		/* pointer to screen structure */
 {
 /* Set a register pair inside the 6845.
  * Registers 12-13 tell the 6845 where in video ram to start
  * Registers 14-15 tell the 6845 where to put the cursor
  */
   lock();			/* try to stop h/w loading in-between value */
-  out_byte(vid_port + INDEX, reg);		/* set the index register */
-  out_byte(vid_port + DATA, (val>>8) & BYTE);	/* output high byte */
-  out_byte(vid_port + INDEX, reg + 1);		/* again */
-  out_byte(vid_port + DATA, val&BYTE);		/* output low byte */
+  out_byte(screen->vid_port + INDEX, reg);		/* set the index register */
+  out_byte(screen->vid_port + DATA, (val>>8) & BYTE);	/* output high byte */
+  out_byte(screen->vid_port + INDEX, reg + 1);		/* again */
+  out_byte(screen->vid_port + DATA, val&BYTE);		/* output low byte */
   unlock();
 }
 
@@ -736,6 +758,66 @@ PRIVATE void stop_beep()
   unlock();
 }
 
+/*===========================================================================*
+ *				set_mda					     *
+ *===========================================================================*/
+PRIVATE void set_mda (void)
+{
+	char init_data[16] = {0x61, 0x50, 0x52, 0x0f, 0x19, 0x06, 0x19,
+				0x19, 0x02, 0x0d, 0x0b, 0x0c,
+				0x00, 0x00, 0x00, 0x00};
+	char i = 0;
+	lock ();
+	out_byte (0x03b8, 0x01);
+	for (i=0;i<16;i++)
+	{
+		out_byte (0x03b4, i);
+		out_byte (0x03b5, init_data[i]);
+	}
+	out_byte (0x03b8, 0x29);
+	unlock ();
+}
+
+/*===========================================================================*
+ *				init_display								     *
+display_t *display;
+u16_t crtbase;
+int ega_or_vga;
+ *===========================================================================*/
+void init_display (display_t * display, u16_t crtbase, int ega_or_vga)
+{
+  int display_nr;
+  display_nr = display - &(display_table[0]);
+  if ((display_nr > 1) || (display_nr < 0))
+	return;
+  display->vid_port = crtbase; 
+  if (display->vid_port == C_6845)
+  {
+	display->vid_base = COLOR_BASE;
+	display->vid_size = COLOR_SIZE;
+  } else {
+	display->vid_base = MONO_BASE;
+	display->vid_size = MONO_SIZE;
+  }
+  if (ega_or_vga) display->vid_size = EGA_SIZE;
+  display->wrap = !ega_or_vga;
+
+  if (display_nr == 0)
+  {
+  	display->vid_seg = protected_mode ? VIDEO_SELECTOR0 :
+		physb_to_hclick(display->vid_base);
+  	init_dataseg(&gdt[VIDEO_INDEX0], display->vid_base,
+		(phys_bytes) display->vid_size, TASK_PRIVILEGE);
+  }
+  else {
+  	display->vid_seg = protected_mode ? VIDEO_SELECTOR1 :
+		physb_to_hclick(display->vid_base);
+  	init_dataseg(&gdt[VIDEO_INDEX1], display->vid_base,
+		(phys_bytes) display->vid_size, TASK_PRIVILEGE);
+  }
+  display->vid_size >>= 1;		/* word count */
+  display->vid_mask = display->vid_size - 1;
+}
 
 /*===========================================================================*
  *				scr_init				     *
@@ -759,45 +841,45 @@ tty_t *tp;
 
   /* Initialize the keyboard driver. */
   kb_init(tp);
-
   /* Output functions. */
   tp->tty_devwrite = cons_write;
   tp->tty_echo = cons_echo;
 
   /* Get the BIOS parameters that tells the VDU I/O base register. */
+  /* Configure the standard display (No. 0) */
   phys_copy(0x463L, vir2phys(&bios_crtbase), 2L);
-
-  vid_port = bios_crtbase;
-
-  if (color) {
-	vid_base = COLOR_BASE;
-	vid_size = COLOR_SIZE;
-  } else {
-	vid_base = MONO_BASE;
-	vid_size = MONO_SIZE;
-  }
-  if (ega) vid_size = EGA_SIZE;
-  wrap = !ega;
-
-  vid_seg = protected_mode ? VIDEO_SELECTOR : physb_to_hclick(vid_base);
-  init_dataseg(&gdt[VIDEO_INDEX], vid_base, (phys_bytes) vid_size,
-							TASK_PRIVILEGE);
-  vid_size >>= 1;		/* word count */
-  vid_mask = vid_size - 1;
+  /* Standard screen, recognized by BIOS: */
+  init_display (&(display_table[0]), bios_crtbase, ega);
+  /* Monochrome adapter */
+  init_display (&(display_table[1]), 0xb000, 0);
 
   /* There can be as many consoles as video memory allows. */
-  nr_cons = vid_size / scr_size;
+  nr_cons = (display_table[0].vid_size +
+	display_table[1].vid_size) / scr_size;
   if (nr_cons > NR_CONS) nr_cons = NR_CONS;
-  if (nr_cons > 1) wrap = 0;
-  page_size = vid_size / nr_cons;
-  cons->c_start = line * page_size;
-  cons->c_limit = cons->c_start + page_size;
-  cons->c_org = cons->c_start;
+  if (nr_cons > 1) display_table[0].wrap = display_table[1].wrap = 0;
+  /* If we have at least two consoles --- initialize monochrome adapter */
+  if (line == (nr_cons-1) && (line!=0))
+  {
+	set_mda ();
+	cons->display = &(display_table[1]);
+	cons->c_start = 0;
+	cons->c_limit = scr_size;
+	cons->c_org = cons->c_start;
+	cons->display = &(display_table[1]);
+  }
+  else
+  {
+	page_size = display_table[0].vid_size / nr_cons;
+	cons->c_start = line * page_size;
+	cons->c_limit = cons->c_start + page_size;
+	cons->c_org = cons->c_start;
+	cons->display = &(display_table[0]);
+  }
   cons->c_attr = cons->c_blank = BLANK_COLOR;
-
-  /* Clear the screen. */
+  /* Clear console. */
   blank_color = BLANK_COLOR;
-  mem_vid_copy(BLANK_MEM, cons->c_start, scr_size);
+  mem_vid_copy(BLANK_MEM, cons->c_start, scr_size, cons->display);
   select_console(0);
 }
 
@@ -858,14 +940,17 @@ PRIVATE void cons_org0()
   int cons_line;
   console_t *cons;
   unsigned n;
+  display_t * display;
+  display = cons->display;
 
   for (cons_line = 0; cons_line < nr_cons; cons_line++) {
 	cons = &cons_table[cons_line];
 	while (cons->c_org > cons->c_start) {
-		n = vid_size - scr_size;	/* amount of unused memory */
+		n = display->vid_size - scr_size;	/* amount of unused memory */
 		if (n > cons->c_org - cons->c_start)
 			n = cons->c_org - cons->c_start;
-		vid_vid_copy(cons->c_org, cons->c_org - n, scr_size);
+		vid_vid_copy(cons->c_org, cons->c_org - n, scr_size,
+			display);
 		cons->c_org -= n;
 	}
 	flush(cons);
@@ -884,8 +969,8 @@ PUBLIC void select_console(int cons_line)
   if (cons_line < 0 || cons_line >= nr_cons) return;
   current = cons_line;
   curcons = &cons_table[cons_line];
-  set_6845(VID_ORG, curcons->c_org);
-  set_6845(CURSOR, curcons->c_cur);
+  set_6845(VID_ORG, curcons->c_org, curcons->display);
+  set_6845(CURSOR, curcons->c_cur, curcons->display);
 }
 
 
@@ -915,8 +1000,8 @@ phys_bytes user_phys;
 	{ GA_GRAPHICS_INDEX, 0x05, 0x10 },
 	{ GA_GRAPHICS_INDEX, 0x06,    0 },
   };
-
-  seq2[6].value= color ? 0x0E : 0x0A;
+  /* MDA has no uploading fonts, and EGA should be colourful*/
+  seq2[6].value=0x0e; /*color ? 0x0E : 0x0A;*/
 
   if (!ega) return(ENOTTY);
 

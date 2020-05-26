@@ -58,6 +58,7 @@ int mine;
 	out_byte(INT_CTLMASK, (1 << CASCADE_IRQ));	/* ICW3 tells slaves */
 	out_byte(INT_CTLMASK, ICW4_AT);
 	out_byte(INT_CTLMASK, ~(1 << CASCADE_IRQ));	/* IRQ 0-7 mask */
+	/* Configure slave controller */
 	out_byte(INT2_CTL, ps_mca ? ICW1_PS : ICW1_AT);
 	out_byte(INT2_CTLMASK, mine ? IRQ8_VECTOR : BIOS_IRQ8_VEC);
 							/* ICW2 for slave */
@@ -86,7 +87,7 @@ int irq;
 /* Default interrupt handler.  It complains a lot. */
 
   if (irq < 0 || irq >= NR_IRQ_VECTORS)
-	panic("invalid call to spurious_irq", irq);
+	panic("invalid IRQ number in spurious_irq call", irq);
 
   printf("spurious irq %d\n", irq);
 
@@ -103,7 +104,7 @@ irq_handler_t handler;
 /* Register an interrupt handler. */
 
   if (irq < 0 || irq >= NR_IRQ_VECTORS)
-	panic("invalid call to put_irq_handler", irq);
+	panic("invalid IRQ number in put_irq_handler call", irq);
 
   if (irq_table[irq] == handler)
 	return;		/* extra initialization */

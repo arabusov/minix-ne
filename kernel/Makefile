@@ -20,7 +20,7 @@ HEAD =	mpx.o
 OBJS =	start.o protect.o klib.o table.o main.o proc.o \
 	exception.o system.o clock.o memory.o tty.o keyboard.o \
 	console.o i8259.o rs232.o dmp.o misc.o driver.o \
-	drvlib.o floppy.o wini.o at_wini.o bios_wini.o esdi_wini.o \
+	drvlib.o floppy.o wini.o at_wini.o bios_wini.o \
 	xt_wini.o printer.o aha_scsi.o dp8390.o pty.o \
 	wdeth.o ne2000.o mcd.o sb16_dsp.o sb16_mixer.o
 

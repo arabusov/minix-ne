@@ -158,8 +158,10 @@ _PROTOTYPE( void port_write, (unsigned port, phys_bytes source,
 _PROTOTYPE( void port_write_byte, (unsigned port, phys_bytes source,
 		unsigned bytcount)					);
 _PROTOTYPE( void reset, (void)						);
-_PROTOTYPE( void vid_vid_copy, (unsigned src, unsigned dst, unsigned count));
-_PROTOTYPE( void mem_vid_copy, (u16_t *src, unsigned dst, unsigned count));
+_PROTOTYPE( void vid_vid_copy, (unsigned src, unsigned dst, unsigned count,
+	void * p));
+_PROTOTYPE( void mem_vid_copy, (u16_t *src, unsigned dst, unsigned count,
+	void * p));
 _PROTOTYPE( void level0, (void (*func)(void))				);
 _PROTOTYPE( void monitor, (void)					);
 

@@ -67,9 +67,9 @@
 .extern	_blank_color
 .extern	_gdt
 .extern	_protected_mode
-.extern	_vid_seg
-.extern	_vid_size
-.extern	_vid_mask
+!.extern	_vid_seg
+!.extern	_vid_size
+!.extern	_vid_mask
 .extern	_level0_func
 
 	.text
@@ -200,8 +200,9 @@ csinit:
 	mov	ax, #TSS_SELECTOR
 	ltr	ax			! set TSS register
 
-	movb	ah, #0xDF
-	jmp	gate_A20		! enable the A20 address line
+!	movb	ah, #0xDF
+!	jmp	gate_A20		! enable the A20 address line
+	jmp	enable_A20_PS2
 
 
 !*===========================================================================*
@@ -253,8 +254,9 @@ real:
 	mov	ss, ax
 	mov	sp, save_sp		! restore stack
 
-	movb	ah, #0xDD
-	!jmp	gate_A20		! disable the A20 address line
+	!movb	ah, #0xDD
+	!!jmp	gate_A20		! disable the A20 address line
+	jmp	disable_A20_PS2
 
 ! Enable (ah = 0xDF) or disable (ah = 0xDD) the A20 address line.
 gate_A20:
@@ -275,8 +277,71 @@ kb_wait:
 	testb	al, #0x02	! Keyboard input buffer full?
 	jnz	kb_wait		! If so, wait
 	ret
+kb_wait2:
+	inb	0x64
+	testb	al, #0x01	! Keyboard input buffer full?
+	jnz	kb_wait2		! If so, wait
+	ret
+! from HIMEM.SYS driver... (github.com/MikeyG/himem)
+enable_A20_PS2:
+	inb	0x92
+	testb	al,#2
+	jnz	enable_A20_PS2_end
 
+	orb	al, #2
+	outb	0x92
+	xor	cx,cx
+enable_A20_PS2_loop:
+	inb	0x92
+	testb	al,#2
+	loopz	enable_A20_PS2_loop
+enable_A20_PS2_end:
+	ret
+disable_A20_PS2:
+	inb	0x92
+	andb	al,#0xFD ! second bit inverted 
+	outb	0x92
+	xor	cx,cx
+disable_A20_PS2_loop:
+	inb	0x92
+	testb	al,#2
+	loopnz	disable_A20_PS2_loop
+	ret
 
+enable_A20_AT:
+	call	Sync8042_AT
+	!jnz	AAHErr
+	movb	al, #0xD1
+	outb	0x64
+	call	Sync8042_AT
+
+	movb	al, #0xDF
+	outb	0x60
+	call	Sync8042_AT
+
+	movb	al, #0xFF
+	outb	0x64
+	call	Sync8042_AT
+	ret
+disable_A20_AT:
+	call	Sync8042_AT
+	movb	al, #0xD1
+	outb	0x64
+	call	Sync8042_AT
+
+	movb	al, #0xDD
+	outb	0x60
+	call	Sync8042_AT
+
+	ret
+
+Sync8042_AT:
+	xor	cx,cx
+sync_loop_AT:
+	inb	0x64
+	andb	al, #2
+	loopnz	sync_loop_AT
+	ret
 !*===========================================================================*
 !*				check_mem				     *
 !*===========================================================================*
@@ -805,29 +870,32 @@ _reset:
 !*===========================================================================*
 !*				mem_vid_copy				     *
 !*===========================================================================*
-! PUBLIC void mem_vid_copy(u16 *src, unsigned dst, unsigned count);
+! PUBLIC void mem_vid_copy(u16 *src, unsigned dst, unsigned count,
+!		display_t * display);
 !
 ! Copy count characters from kernel memory to video memory.  Src, dst and
 ! count are character (word) based video offsets and counts.  If src is null
 ! then screen memory is blanked by filling it with blank_color.
 
-MVC_ARGS	=	2 + 2 + 2 + 2	! 2 + 2 + 2
-!			es  di  si  ip	 src dst ct
+MVC_ARGS	=	2 + 2 + 2 + 2 + 2	! 2 + 2 + 2 + 2
+!			bp es  di  si  ip	 src dst ct display_p
 
 _mem_vid_copy:
 	push	si
 	push	di
 	push	es
+	push	bp
 	mov	bx, sp
 	mov	si, MVC_ARGS(bx)	! source
 	mov	di, MVC_ARGS+2(bx)	! destination
 	mov	dx, MVC_ARGS+2+2(bx)	! count
-	mov	es, _vid_seg		! destination is video segment
+	mov	bp, MVC_ARGS+2+2+2(bx)	! pointer to screen struct
+	mov	es, (bp)	!_vid_seg ! destination is video segment
 	cld				! make sure direction is up
 mvc_loop:
-	and	di, _vid_mask		! wrap address
+	and	di, 4(bp) !_vid_mask		! wrap address
 	mov	cx, dx			! one chunk to copy
-	mov	ax, _vid_size
+	mov	ax, 2(bp) !_vid_size
 	sub	ax, di
 	cmp	cx, ax
 	jbe	0f
@@ -850,6 +918,7 @@ mvc_test:
 	test	dx, dx
 	jnz	mvc_loop
 mvc_done:
+	pop	bp
 	pop	es
 	pop	di
 	pop	si
@@ -859,38 +928,41 @@ mvc_done:
 !*===========================================================================*
 !*				vid_vid_copy				     *
 !*===========================================================================*
-! PUBLIC void vid_vid_copy(unsigned src, unsigned dst, unsigned count);
+! PUBLIC void vid_vid_copy(unsigned src, unsigned dst, unsigned count,
+!	display_t * pointer_display);
 !
 ! Copy count characters from video memory to video memory.  Handle overlap.
 ! Used for scrolling, line or character insertion and deletion.  Src, dst
 ! and count are character (word) based video offsets and counts.
 
-VVC_ARGS	=	2 + 2 + 2 + 2	! 2 + 2 + 2
-!			es  di  si  ip 	 src dst ct
+VVC_ARGS	=	2 + 2 + 2 + 2 + 2	! 2 + 2 + 2 + 2
+!			bp es  di  si  ip 	 src dst ct display
 
 _vid_vid_copy:
 	push	si
 	push	di
 	push	es
+	push	bp
 	mov	bx, sp
 	mov	si, VVC_ARGS(bx)	! source
 	mov	di, VVC_ARGS+2(bx)	! destination
 	mov	dx, VVC_ARGS+2+2(bx)	! count
-	mov	es, _vid_seg		! use video segment
+	mov	bp, VVC_ARGS+2+2+2(bx)	! Pointer to display
+	mov	es, (bp) !_vid_seg		! use video segment
 	cmp	si, di			! copy up or down?
 	jb	vvc_down
 vvc_up:
 	cld				! direction is up
 vvc_uploop:
-	and	si, _vid_mask		! wrap addresses
-	and	di, _vid_mask
+	and	si, 4(bp) !_vid_mask		! wrap addresses
+	and	di, 4(bp) !_vid_mask
 	mov	cx, dx			! one chunk to copy
-	mov	ax, _vid_size
+	mov	ax, 2(bp) !_vid_size
 	sub	ax, si
 	cmp	cx, ax
 	jbe	0f
 	mov	cx, ax			! cx = min(cx, vid_size - si)
-0:	mov	ax, _vid_size
+0:	mov	ax, 2(bp) ! _vid_size
 	sub	ax, di
 	cmp	cx, ax
 	jbe	0f
@@ -912,8 +984,8 @@ vvc_down:
 	add	di, dx
 	dec	di
 vvc_downloop:
-	and	si, _vid_mask		! wrap addresses
-	and	di, _vid_mask
+	and	si, 4(bp) !_vid_mask		! wrap addresses
+	and	di, 4(bp) !_vid_mask
 	mov	cx, dx			! one chunk to copy
 	lea	ax, 1(si)
 	cmp	cx, ax
@@ -935,6 +1007,7 @@ vvc_downloop:
 	cld				! C compiler expect up
 	!jmp	vvc_done
 vvc_done:
+	pop	bp
 	pop	es
 	pop	di
 	pop	si
