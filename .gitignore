@@ -2,6 +2,8 @@
 tools/init
 mm/mm
 inet/inet
+kernel/kernel
+inet/.all
 *.log
 fs/fs
 
