@@ -932,17 +932,16 @@ PRIVATE void cons_org0()
   int cons_line;
   console_t *cons;
   unsigned n;
-  display_t * display;
-  display = cons->display;
 
   for (cons_line = 0; cons_line < nr_cons; cons_line++) {
 	cons = &cons_table[cons_line];
 	while (cons->c_org > cons->c_start) {
-		n = display->vid_size - scr_size; /* amount of unused memory */
+		/* amount of unused memory */
+		n = cons->display->vid_size - scr_size;
 		if (n > cons->c_org - cons->c_start)
 			n = cons->c_org - cons->c_start;
 		vid_vid_copy(cons->c_org, cons->c_org - n, scr_size,
-			display);
+			cons->display);
 		cons->c_org -= n;
 	}
 	flush(cons);
