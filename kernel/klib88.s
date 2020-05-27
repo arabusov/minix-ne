@@ -64,7 +64,6 @@
 
 .extern kernel_ds
 .extern _irq_use
-.extern	_blank_color
 .extern	_gdt
 .extern	_protected_mode
 !.extern	_vid_seg
@@ -909,7 +908,7 @@ mvc_copy:
 	movs
 	jmp	mvc_test
 mvc_blank:
-	mov	ax, _blank_color	! ax = blanking character
+	mov	ax, 6(bp) !_blank_color	! ax = blanking character
 	rep
 	stos				! copy blanks to video memory
 	!jmp	mvc_test

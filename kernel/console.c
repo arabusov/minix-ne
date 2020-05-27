@@ -58,24 +58,16 @@
 #define GA_VIDEO_ADDRESS	0xA0000L
 #define GA_FONT_SIZE		8192
 
-/* Global variables used by the console driver. */
-PUBLIC unsigned vid_seg;	/* video ram selector (0xB0000 or 0xB8000) */
-PUBLIC unsigned vid_size;	/* 0x2000 for color or 0x0800 for mono */
-PUBLIC unsigned vid_mask;	/* 0x1FFF for color or 0x07FF for mono */
-PUBLIC unsigned blank_color = BLANK_COLOR; /* display code for blank */
-
 /* Private variables used by the console driver. */
 PRIVATE int vid_port;		/* I/O port for accessing 6845 */
-PRIVATE int wrap;		/* hardware can wrap? */
 PRIVATE int softscroll;		/* 1 = software scrolling, 0 = hardware */
-PRIVATE unsigned vid_base;	/* base of video ram (0xB000 or 0xB800) */
 PRIVATE int beeping;		/* speaker is beeping? */
 /* Data per a physical screen */
 typedef struct video {
 	unsigned vid_seg;	/* Selector or segment of video RAM
 				 * starts either at 0xb0000, or 0xb80000 */
 	unsigned vid_size;	/* 0x2000 for colour or 0x0800 for mono */
-	unsigned vid_mask;	/* 0x1fff for colour or 0x7fff for mono */
+	unsigned vid_mask;	/* 0x1fff for colour or 0x07ff for mono */
 	unsigned blank_color;	/* attribute byte for a blank char */
 	int	 vid_port;	/* I/O port to access M6845 */
 	int	 wrap;		/* Can hardware wrap? */
@@ -312,6 +304,9 @@ register console_t *cons;	/* pointer to console struct */
 int dir;			/* SCROLL_UP or SCROLL_DOWN */
 {
   unsigned new_line, new_org, chars;
+  display_t * display;
+
+  display = cons->display;
 
   flush(cons);
   chars = scr_size - scr_width;		/* one screen minus one line */
@@ -327,38 +322,38 @@ int dir;			/* SCROLL_UP or SCROLL_DOWN */
 	/* Scroll one line up in 3 ways: soft, avoid wrap, use origin. */
 	if (softscroll) {
 		vid_vid_copy(cons->c_start + scr_width, cons->c_start, chars,
-			cons->display);
+			display);
 	} else
-	if (!wrap && cons->c_org + scr_size + scr_width >= cons->c_limit) {
+	if (!display->wrap && cons->c_org + scr_size + scr_width
+		 >= cons->c_limit) {
 		vid_vid_copy(cons->c_org + scr_width, cons->c_start, chars,
-			cons->display);
+			display);
 		cons->c_org = cons->c_start;
 	} else {
-		cons->c_org = (cons->c_org + scr_width) & vid_mask;
+		cons->c_org = (cons->c_org + scr_width) & display->vid_mask;
 	}
-	new_line = (cons->c_org + chars) & vid_mask;
+	new_line = (cons->c_org + chars) & display->vid_mask;
   } else {
 	/* Scroll one line down in 3 ways: soft, avoid wrap, use origin. */
 	if (softscroll) {
 		vid_vid_copy(cons->c_start, cons->c_start + scr_width, chars,
-			cons->display);
+			display);
 	} else
-	if (!wrap && cons->c_org < cons->c_start + scr_width) {
+	if (!display->wrap && cons->c_org < cons->c_start + scr_width) {
 		new_org = cons->c_limit - scr_size;
 		vid_vid_copy(cons->c_org, new_org + scr_width, chars,
-			cons->display);
+			display);
 		cons->c_org = new_org;
 	} else {
-		cons->c_org = (cons->c_org - scr_width) & vid_mask;
+		cons->c_org = (cons->c_org - scr_width) & display->vid_mask;
 	}
 	new_line = cons->c_org;
   }
   /* Blank the new line at top or bottom. */
-  blank_color = cons->c_blank;
-  mem_vid_copy(BLANK_MEM, new_line, scr_width, cons->display);
+  mem_vid_copy(BLANK_MEM, new_line, scr_width, display);
 
   /* Set the new video origin. */
-  if (cons == curcons) set_6845(VID_ORG, cons->c_org, cons->display);
+  if (cons == curcons) set_6845(VID_ORG, cons->c_org, display);
   flush(cons);
 }
 
@@ -537,7 +532,6 @@ char c;				/* next character in escape sequence */
 			count = 0;
 			dst = cons->c_org;
 		}
-		blank_color = cons->c_blank;
 		mem_vid_copy(BLANK_MEM, dst, count, cons->display);
 		break;
 
@@ -559,7 +553,6 @@ char c;				/* next character in escape sequence */
 			count = 0;
 			dst = cons->c_cur;
 		}
-		blank_color = cons->c_blank;
 		mem_vid_copy(BLANK_MEM, dst, count, cons->display);
 		break;
 
@@ -573,7 +566,6 @@ char c;				/* next character in escape sequence */
 		dst = src + n * scr_width;
 		count = (scr_lines - cons->c_row - n) * scr_width;
 		vid_vid_copy(src, dst, count, cons->display);
-		blank_color = cons->c_blank;
 		mem_vid_copy(BLANK_MEM, src, n * scr_width, cons->display);
 		break;
 
@@ -587,7 +579,6 @@ char c;				/* next character in escape sequence */
 		src = dst + n * scr_width;
 		count = (scr_lines - cons->c_row - n) * scr_width;
 		vid_vid_copy(src, dst, count, cons->display);
-		blank_color = cons->c_blank;
 		mem_vid_copy(BLANK_MEM, dst + count, n * scr_width,
 			cons->display);
 		break;
@@ -602,7 +593,6 @@ char c;				/* next character in escape sequence */
 		dst = src + n;
 		count = scr_width - cons->c_column - n;
 		vid_vid_copy(src, dst, count, cons->display);
-		blank_color = cons->c_blank;
 		mem_vid_copy(BLANK_MEM, src, n, cons->display);
 		break;
 
@@ -616,7 +606,6 @@ char c;				/* next character in escape sequence */
 		src = dst + n;
 		count = scr_width - cons->c_column - n;
 		vid_vid_copy(src, dst, count, cons->display);
-		blank_color = cons->c_blank;
 		mem_vid_copy(BLANK_MEM, dst + count, n, cons->display);
 		break;
 
@@ -675,6 +664,7 @@ char c;				/* next character in escape sequence */
 				cons->c_blank =
 					(cons->c_blank & 0xf0ff) |
 					(ansi_colors[(value - 30)] << 8);
+				cons->display->blank_color = cons->c_blank;
 			} else
 			if (40 <= value && value <= 47) {
 				cons->c_attr =
@@ -683,6 +673,7 @@ char c;				/* next character in escape sequence */
 				cons->c_blank =
 					(cons->c_blank & 0x0fff) |
 					(ansi_colors[(value - 40)] << 12);
+				cons->display->blank_color = cons->c_blank;
 			} else {
 				cons->c_attr = cons->c_blank;
 			}
@@ -864,7 +855,7 @@ tty_t *tp;
 	set_mda ();
 	cons->display = &(display_table[1]);
 	cons->c_start = 0;
-	cons->c_limit = scr_size;
+	cons->c_limit = 2048; /* half of MDA memory, slightly above a scr */
 	cons->c_org = cons->c_start;
 	cons->display = &(display_table[1]);
   }
@@ -878,7 +869,7 @@ tty_t *tp;
   }
   cons->c_attr = cons->c_blank = BLANK_COLOR;
   /* Clear console. */
-  blank_color = BLANK_COLOR;
+  cons->display->blank_color = BLANK_COLOR;
   mem_vid_copy(BLANK_MEM, cons->c_start, scr_size, cons->display);
   select_console(0);
 }
@@ -928,6 +919,7 @@ PUBLIC void cons_stop()
   softscroll = 1;
   select_console(0);
   cons_table[0].c_attr = cons_table[0].c_blank = BLANK_COLOR;
+  display_table[0].blank_color = BLANK_COLOR;
 }
 
 
@@ -946,7 +938,7 @@ PRIVATE void cons_org0()
   for (cons_line = 0; cons_line < nr_cons; cons_line++) {
 	cons = &cons_table[cons_line];
 	while (cons->c_org > cons->c_start) {
-		n = display->vid_size - scr_size;	/* amount of unused memory */
+		n = display->vid_size - scr_size; /* amount of unused memory */
 		if (n > cons->c_org - cons->c_start)
 			n = cons->c_org - cons->c_start;
 		vid_vid_copy(cons->c_org, cons->c_org - n, scr_size,

@@ -32,7 +32,8 @@ almost works, but I have a bug with the not-wiped last line
 during scrolling.
 
 ## Bug list
-  1. Not-wiped last line during scrolling.
+  1. ~~Not-wiped last line during scrolling.~~
+  2. Monochrome display doesn't change the cursor position
 ## TODO list
   1. Networking
   2. Compact Flash driver
