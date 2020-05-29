@@ -25,7 +25,7 @@ in the PS/2 style, not in AT style, unusual for the Model 30).
 ## Features
 ### Dual-screen MINIX
 
-![dual-screen logo][dual-screen-minix.png]
+![dual-screen logo](https://github.com/arabusov/my-minix-1.7.5/blob/master/dual-screen-minix.png)
 
 I have a monochrome (IBM 5151-like) monitor, and obviously I want
 to use it with my PS/2. But of course it has a VGA output and
