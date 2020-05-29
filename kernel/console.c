@@ -388,7 +388,8 @@ register console_t *cons;	/* pointer to console struct */
   if (cons->c_row >= scr_lines) cons->c_row = scr_lines - 1;
   cur = cons->c_org + cons->c_row * scr_width + cons->c_column;
   if (cur != cons->c_cur) {
-	if (cons == curcons) set_6845(CURSOR, cur, cons->display);
+	if (cons == curcons)
+	set_6845(CURSOR, cur, cons->display);
 	cons->c_cur = cur;
   }
 }
@@ -766,6 +767,11 @@ PRIVATE void set_mda (void)
 		out_byte (0x03b5, init_data[i]);
 	}
 	out_byte (0x03b8, 0x29);
+	/* Set cursor type */
+	out_byte (0x03b4, 10);
+	out_byte (0x03b5, 0x00);
+	out_byte (0x03b4, 11);
+	out_byte (0x03b5, 14);
 	unlock ();
 }
 
@@ -775,13 +781,13 @@ display_t *display;
 u16_t crtbase;
 int ega_or_vga;
  *===========================================================================*/
-void init_display (display_t * display, u16_t crtbase, int ega_or_vga)
+void init_display (display_t * display, u16_t crtport, int ega_or_vga)
 {
   int display_nr;
   display_nr = display - &(display_table[0]);
   if ((display_nr > 1) || (display_nr < 0))
 	return;
-  display->vid_port = crtbase; 
+  display->vid_port = crtport; 
   if (display->vid_port == C_6845)
   {
 	display->vid_base = COLOR_BASE;
@@ -842,7 +848,7 @@ tty_t *tp;
   /* Standard screen, recognized by BIOS: */
   init_display (&(display_table[0]), bios_crtbase, ega);
   /* Monochrome adapter */
-  init_display (&(display_table[1]), 0xb000, 0);
+  init_display (&(display_table[1]), M_6845, 0);
 
   /* There can be as many consoles as video memory allows. */
   nr_cons = (display_table[0].vid_size +
@@ -853,7 +859,6 @@ tty_t *tp;
   if (line == (nr_cons-1) && (line!=0))
   {
 	set_mda ();
-	cons->display = &(display_table[1]);
 	cons->c_start = 0;
 	cons->c_limit = 2048; /* half of MDA memory, slightly above a scr */
 	cons->c_org = cons->c_start;
