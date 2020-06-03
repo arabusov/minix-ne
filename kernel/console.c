@@ -353,7 +353,11 @@ int dir;			/* SCROLL_UP or SCROLL_DOWN */
   mem_vid_copy(BLANK_MEM, new_line, scr_width, display);
 
   /* Set the new video origin. */
-  if (cons == curcons) set_6845(VID_ORG, cons->c_org, display);
+  /* The next line is commented to fix the scrolling issue in dual-monitor
+	configuration. But it works only with two teletypes, it doesn't work
+	with more than two (I didn't check, but I know). */
+  /* if (cons == curcons) */
+  set_6845(VID_ORG, cons->c_org, display);
   flush(cons);
 }
 

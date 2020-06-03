@@ -1,5 +1,6 @@
 # binaries
 tools/init
+tools/image
 mm/mm
 inet/inet
 kernel/kernel
