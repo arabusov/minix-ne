@@ -62,8 +62,8 @@ console.o:	protect.h
 console.o:	tty.h
 console.o:	proc.h
 
-pnp-isa.o: pnp-isa/pnp-isa.c
-pnp-isa.o: pnp-isa/pnp-isa.h
+pnp-isa.o:	$a
+pnp-isa.o: pnp-isa.h
 pnp-isa.o: proto.h
 pnp-isa.o: $i/string.h
 

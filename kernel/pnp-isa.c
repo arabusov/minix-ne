@@ -8,21 +8,21 @@
  */
 
 #include "kernel.h"
-
+#include <minix/com.h>
 #include "proto.h"  /* milli_delay (int) */
 #include <string.h>
 
 #include "pnp-isa.h"
 
-pnp_isa_t pnp_table [PNP_TABLE_SIZE];
-
+pnp_isa_t pnp_table [PNP_TABLE_LEN];
+#define DEBUG 1
 /************************************************************************
  *                         pnp_isa_init_key                             *
  *                                                                      *
  * Send initialization sequence to the ADDRESS_PORT                     *
  * See "Initiation Key" section in the specification manual             *
  ************************************************************************/
-void pnp_isa_init_key ()
+PRIVATE void pnp_isa_init_key (void)
 {
     /* The table for linear feedback shift register algorithm (LFSR),
      * initial value: 0x6a */
@@ -48,7 +48,7 @@ void pnp_isa_init_key ()
  * pnp_read_port: read port, must be in range PNP_READ_DATA_LO:_HI      *
  * pnp_card_id:   array of PNP_ID_LEN size (last byte is checksum)      *
  ************************************************************************/
-int pnp_isa_isolate_card (u16_t pnp_read_port, u8_t * pnp_card_id)
+PRIVATE int pnp_isa_isolate_card (u16_t pnp_read_port, u8_t * pnp_card_id)
 {
     u8_t read_res_1, read_res_2;
     /* Checksum is determined by the LFSR algorithm */
@@ -72,6 +72,9 @@ int pnp_isa_isolate_card (u16_t pnp_read_port, u8_t * pnp_card_id)
         if ((read_res_1 == PNP_ISOLATE_MAGIC_1) &&
             (read_res_2 == PNP_ISOLATE_MAGIC_2))
         {
+#if DEBUG
+printf ("Two reads: %x %x. ", read_res_1, read_res_2);
+#endif
             /* set ith bit to 1 */
             pnp_card_id [i/8] |= (1<<(i%8))&0xff;
             /* At least one magic happens means at least one card present */
@@ -100,22 +103,30 @@ int pnp_isa_isolate_card (u16_t pnp_read_port, u8_t * pnp_card_id)
 /************************************************************************
  *                         pnp_isa_fill_table                           *
  ************************************************************************/
-void pnp_isa_fill_table ()
+PRIVATE void pnp_isa_fill_table (void)
 {
-    u8_t id_buffer [PNP_ID_LEN];
+    char id_buffer [PNP_ID_LEN];
     int port, i;
     for (port = PNP_READ_DATA_LO, i = 0; port <= PNP_READ_DATA_HI;
         port += PNP_READ_DATA_STEP, i++)
     {
         int res = PNP_CARD_NOT_DETECTED;
-        res = pnp_isa_isolate_card (port, id_buffer);
+	pnp_isa_init_key ();
+        res = pnp_isa_isolate_card (port, (u8_t*)id_buffer);
         if (res == 0)
         {
             pnp_table[i].port_read_data = port;
-            strncpy (pnp_table[i].vendor_ID, id_buffer, PNP_VENDOR_ID_LEN);
+            strncpy (&(pnp_table[i].vendor_ID[0]), &(id_buffer[0]), PNP_VENDOR_ID_LEN);
             strncpy (pnp_table[i].serial_number, id_buffer+PNP_VENDOR_ID_LEN,
                 PNP_SN_LEN);
             pnp_table[i].checksum = id_buffer [PNP_ID_LEN-1];
+#if DEBUG
+printf ("Found PNP device 0x%x 0x%x 0x%x 0x%x\n",
+pnp_table[i].vendor_ID[0],
+pnp_table[i].vendor_ID[1],
+pnp_table[i].vendor_ID[2],
+pnp_table[i].vendor_ID[3]);
+#endif
         }
         else
         {
@@ -133,12 +144,18 @@ PUBLIC void pnp_isa_task ()
 {
     message pnp_isa_message;
 
+	int i;
+
     printf ("Plug and Pray^W Play ISA task (experimental)\n");
     /* Initialization step */
     /* 1. Send Initialization key */
-    pnp_isa_init_key ();
     /* 2. Fill table of ISA devices */
     pnp_isa_fill_table ();
+#if DEBUG
+	for (i = 0; i < PNP_TABLE_LEN; i++)
+		if (pnp_table[i].port_read_data != 0)
+			printf ("Port: 0x%x\n", pnp_table[i].port_read_data);
+#endif
     while (TRUE)
     {
         receive (ANY, &pnp_isa_message);

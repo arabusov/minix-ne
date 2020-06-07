@@ -5,9 +5,9 @@
 #define PNP_ADDRESS_PORT    0x0279
 #define PNP_WRITE_DATA      (PNPN_ADDRESS_PORT + 0x0800)
 #define PNP_READ_DATA_LO    0x0200
-#define PNP_READ_DATA_STEP  0x0020
+#define PNP_READ_DATA_STEP  0x0001
 #define PNP_READ_DATA_HI    0x03ff
-#define PNP_TABLE_LEN       (((PNP_READ_DATA_HI+1)-PRP_READ_DATA_LO)/PNP_READ_DATA_STEP)
+#define PNP_TABLE_LEN       (((PNP_READ_DATA_HI+1)-PNP_READ_DATA_LO)/PNP_READ_DATA_STEP)
 
 #define PNP_INITIATION_KEY_LEN  32
 
@@ -24,8 +24,8 @@
 
 typedef struct {
     u16_t   port_read_data;
-    u8_t    vendor_ID [PNP_VENDOR_ID_LEN];
-    u8_t    serial_number [PNP_SN_LEN];
+    char    vendor_ID [PNP_VENDOR_ID_LEN];
+    char    serial_number [PNP_SN_LEN];
     u8_t    checksum;
 } pnp_isa_t;
 
