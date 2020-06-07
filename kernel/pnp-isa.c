@@ -5,6 +5,13 @@
  * http://download.microsoft.com/download/1/6/1
  * /161ba512-40e2-4cc9-843a-923143f3456c/PNPISA.rtf
  *
+ * But much easier to read linux source code: drivers/pnp/isapnp/core.c
+ * i. e. on GitHub:
+ * https://github.com/torvalds/linux/blob/master/drivers/pnp/isapnp/core.c
+ *
+ * Modification history:
+ * June 2020 Andrei Rabusov: initial commit
+ *
  */
 
 #include "kernel.h"
