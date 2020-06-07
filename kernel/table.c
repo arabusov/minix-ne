@@ -40,6 +40,7 @@
 #define	TTY_STACK	(3 * SMALL_STACK)
 #define SYN_ALRM_STACK	SMALL_STACK
 
+#define	PNP_ISA_STACK (3 * SMALL_STACK)
 #define DP8390_STACK	(SMALL_STACK * ENABLE_NETWORKING)
 
 #if (CHIP == INTEL)
@@ -75,7 +76,8 @@
 #define	HARDWARE_STACK	0		/* dummy task, uses kernel stack */
 
 
-#define	TOT_STACK_SPACE		(TTY_STACK + DP8390_STACK + SCSI_STACK + \
+#define	TOT_STACK_SPACE		(TTY_STACK + \
+    PNP_ISA_STACK + DP8390_STACK + SCSI_STACK + \
 	SYN_ALRM_STACK + IDLE_STACK + HARDWARE_STACK + PRINTER_STACK + \
 	WINCH_STACK + FLOP_STACK + MEM_STACK + CLOCK_STACK + SYS_STACK + \
 	CDROM_STACK + AUDIO_STACK + MIXER_STACK)
@@ -99,6 +101,7 @@
 
 PUBLIC struct tasktab tasktab[] = {
 	{ tty_task,		TTY_STACK,	"TTY"		},
+	{ pnp_isa_task,		PNP_ISA_STACK,	"PNP_ISA"	},
 #if ENABLE_NETWORKING
 	{ dp8390_task,		DP8390_STACK,	"DP8390"	},
 #endif

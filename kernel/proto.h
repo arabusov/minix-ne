@@ -39,6 +39,9 @@ _PROTOTYPE( void dp8390_stop, (void)					);
 _PROTOTYPE( void floppy_task, (void)					);
 _PROTOTYPE( void floppy_stop, (void)					);
 
+/* pnp-isa/pnp-isa.c */
+_PROTOTYPE( void pnp_isa_task, (void)					);
+
 /* main.c, stmain.c */
 _PROTOTYPE( void main, (void)						);
 _PROTOTYPE( void panic, (const char *s, int n)				);
