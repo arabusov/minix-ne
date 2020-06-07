@@ -41,13 +41,86 @@ PRIVATE void pnp_isa_init_key (void)
     int i;
     /* Reset all PnP cards */
     out_byte (PNP_ADDRESS_PORT, 0x00);
+    milli_delay (1);
     out_byte (PNP_ADDRESS_PORT, 0x00);
+    milli_delay (1);
     /* Send Initiation Key to set all PnP cards into the Config state */
     for (i = 0; i < PNP_INITIATION_KEY_LEN; i++)
     {
         out_byte (PNP_ADDRESS_PORT, initiation_key[i]);
+        milli_delay (1); /* Here requested 20 usec delay */
     }
     /* Now each card expects 72 pairs of I/O access to the READ_DATA */
+}
+
+/************************************************************************
+ *                          pnp_isa_write                               *
+ ************************************************************************/
+PRIVATE void pnp_isa_write (u8_t addr, u8_t val)
+{
+    out_byte (PNP_ADDRESS_PORT, addr);
+    milli_delay (1); /* must be at least 20 usec, so it's 50 times larger */
+    out_byte (PNP_WRITE_DATA, val);
+}
+
+/************************************************************************
+ *                          pnp_isa_wait                                *
+ ************************************************************************/
+PRIVATE void pnp_isa_wait (void)
+{
+    pnp_isa_write (0x02, 0x02);
+}
+
+/************************************************************************
+ *                          pnp_isa_wake                                *
+ ************************************************************************/
+PRIVATE void pnp_isa_wake (u8_t card_select_number)
+{
+    pnp_isa_write (0x03, card_select_number);
+}
+
+/************************************************************************
+ *                          pnp_isa_logdev                              *
+ ************************************************************************/
+PRIVATE void pnp_isa_device (u8_t logdev)
+{
+    pnp_isa_write (0x07, logdev);
+}
+
+/************************************************************************
+ *                          pnp_isa_set_read_port                       *
+ ************************************************************************/
+PRIVATE void pnp_isa_set_rdp (u16_t read_data_port)
+{
+    pnp_isa_write (0x00, read_data_port);
+    milli_delay (1); /* 10 times larger than necessary */
+}
+
+/************************************************************************
+ *                          pnp_isa_select_rdp                          *
+ ************************************************************************/
+PRIVATE int pnp_isa_select_rdp (u16_t read_data_port)
+{
+    pnp_isa_wait ();
+    pnp_isa_init_key ();
+    /* Reset Card Select Number */
+    pnp_isa_write (0x02, 0x05); /* can be also 0x02, 0x04) */
+    milli_delay (2); /* no rescale is necessary */
+
+    pnp_isa_wait ();
+    pnp_isa_init_key ();
+    pnp_isa_wake (0x00);
+
+    if (read_data_port < 0)
+    {
+	pnp_isa_wait ();
+	return -1;
+    }
+    pnp_isa_set_rdp (read_data_port);
+    milli_delay (1);
+    out_byte (PNP_ADDRESS_PORT, 0x01);
+    milli_delay (1);
+    return 0;
 }
 
 /************************************************************************
@@ -113,12 +186,14 @@ printf ("Two reads: %x %x. ", read_res_1, read_res_2);
 PRIVATE void pnp_isa_fill_table (void)
 {
     char id_buffer [PNP_ID_LEN];
-    int port, i;
+    int i;
+    u16_t port;
     for (port = PNP_READ_DATA_LO, i = 0; port <= PNP_READ_DATA_HI;
         port += PNP_READ_DATA_STEP, i++)
     {
         int res = PNP_CARD_NOT_DETECTED;
-	pnp_isa_init_key ();
+        if (pnp_isa_select_rdp (port) != 0)
+	    continue;
         res = pnp_isa_isolate_card (port, (u8_t*)id_buffer);
         if (res == 0)
         {

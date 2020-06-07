@@ -3,8 +3,8 @@
 #include <sys/types.h>
 
 #define PNP_ADDRESS_PORT    0x0279
-#define PNP_WRITE_DATA      (PNPN_ADDRESS_PORT + 0x0800)
-#define PNP_READ_DATA_LO    0x0200
+#define PNP_WRITE_DATA      (PNP_ADDRESS_PORT + 0x0800)
+#define PNP_READ_DATA_LO    0x0213
 #define PNP_READ_DATA_STEP  0x0020
 #define PNP_READ_DATA_HI    0x03ff
 #define PNP_TABLE_LEN       (((PNP_READ_DATA_HI+1)-PNP_READ_DATA_LO)/PNP_READ_DATA_STEP)
