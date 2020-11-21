@@ -62,7 +62,7 @@ INIT_ASSERT
 #define debug		0
 #endif
 
-#define DE_PORT_NR	2
+#define DE_PORT_NR	1	
 
 static dpeth_t de_table[DE_PORT_NR];
 static int int_pending[NR_IRQ_VECTORS];
@@ -82,8 +82,7 @@ typedef struct dp_conf
 dp_conf_t dp_conf[]=	/* Card addresses */
 {
 	/* I/O port, IRQ,  Buffer address,  Env. var,   Buf selector. */
-	{  0x280,     3,    0xD0000,        "DPETH0",  DP_ETH0_SELECTOR },
-	{  0x300,     5,    0xCC000,        "DPETH1",  DP_ETH1_SELECTOR },
+	{  0x280,     3,    0xC0000,        "DPETH0",  DP_ETH0_SELECTOR }
 };
 
 /* Test if dp_conf has exactly DE_PORT_NR entries.  If not then you will see
@@ -597,6 +596,7 @@ dpeth_t *dep;
 	dp_confaddr(dep);
 
 	/* Initialization of the dp8390 */
+	printf ("dp8390: continue init function\n");
 	outb_reg0(dep, DP_CR, CR_PS_P0 | CR_STP | CR_DM_ABORT);
 	outb_reg0(dep, DP_IMR, 0);
 	outb_reg0(dep, DP_PSTART, dep->de_startpage);
@@ -674,8 +674,10 @@ dpeth_t *dep;
 	}
 
 	/* set the interrupt handler */
+	printf ("dp8390: prepare IRQ %d\n", dep->de_irq);
 	put_irq_handler(dep->de_irq, dp_handler);
 	enable_irq(dep->de_irq);
+	printf ("dp8390: IRQ set.\n");
 }
 
 
@@ -707,6 +709,10 @@ dpeth_t *dep;
 		/* It's all or nothing; force a panic. */
 		(void) env_parse(eakey, "?", 0, &v, 0L, 0L);
 	}
+	printf ("dp8390: DPETH0 MAC: ");
+	for (i = 0; i < 6; i++)
+		printf ("%x:", dep->de_address.ea_addr[i]);
+	printf ("\n");
 }
 
 
@@ -1597,6 +1603,7 @@ dpeth_t *dep;
 
 	dep->de_flags = DEF_EMPTY;
 	dep->de_stat = empty_stat;
+	printf ("dp8390: conf_hw ends here\n");
 }
 
 

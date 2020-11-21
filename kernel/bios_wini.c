@@ -381,8 +381,10 @@ PRIVATE void w_init()
   struct wini *wn;
 
   /* Enable real mode BIOS vectors. */
+  printf ("bios_wini::w_init: enable vectors\n");
   enable_vectors();
 
+  printf ("bios_wini::w_init: set geometry\n");
   /* Set the geometry of the drives */
   for (drive = 0; drive < nr_drives; drive++) {
 	(void) w_prepare(drive * DEV_PER_DRIVE);

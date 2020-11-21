@@ -94,7 +94,7 @@ struct command {
 #define WAKEUP		(32*HZ)	/* drive may be out for 31 seconds max */
 
 /* Miscellaneous. */
-#define MAX_DRIVES         4	/* this driver supports 4 drives (hd0 - hd19) */
+#define MAX_DRIVES         4	/* this driver supports 2 drives (hd0 - hd9) */
 #if _WORD_SIZE > 2
 #define MAX_SECS	 256	/* controller can transfer this many sectors */
 #else
@@ -164,7 +164,6 @@ FORWARD _PROTOTYPE( int w_intr_wait, (void) );
 FORWARD _PROTOTYPE( int w_waitfor, (int mask, int value) );
 FORWARD _PROTOTYPE( int w_handler, (int irq) );
 FORWARD _PROTOTYPE( void w_geometry, (struct partition *entry) );
-
 /* w_waitfor loop unrolled once for speed. */
 #define waitfor(mask, value)	\
 	((in_byte(w_wn->base + REG_STATUS) & mask) == value \
@@ -201,7 +200,6 @@ PUBLIC void at_winchester_task()
   driver_task(&w_dtab);
 }
 
-
 /*============================================================================*
  *				init_params				      *
  *============================================================================*/
@@ -219,6 +217,7 @@ PRIVATE void init_params()
   /* Get the number of drives from the BIOS data area */
   phys_copy(0x475L, param_phys, 1L);
   if ((nr_drives = params[0]) > 2) nr_drives = 2;
+  printf ("%s: found %d drives\n", w_name (), nr_drives);
 
   for (drive = 0, wn = wini; drive < MAX_DRIVES; drive++, wn++) {
 	if (drive < nr_drives) {
@@ -335,7 +334,12 @@ PRIVATE int w_identify()
   /* Check if the one of the registers exists. */
   r = in_byte(wn->base + REG_CYL_LO);
   out_byte(wn->base + REG_CYL_LO, ~r);
-  if (in_byte(wn->base + REG_CYL_LO) == r) return(ERR);
+  if (in_byte(wn->base + REG_CYL_LO) == r) 
+  {
+	printf ("No ATA registers exist\n");
+	printf ("Try set hd variable in boot monitor to bios\n");
+	return(ERR);
+  }
 
   /* Looks OK; register IRQ and try an ATA identify command. */
   put_irq_handler(wn->irq, w_handler);

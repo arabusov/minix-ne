@@ -40,7 +40,6 @@
 #define	TTY_STACK	(3 * SMALL_STACK)
 #define SYN_ALRM_STACK	SMALL_STACK
 
-#define	PNP_ISA_STACK (3 * SMALL_STACK)
 #define DP8390_STACK	(SMALL_STACK * ENABLE_NETWORKING)
 
 #if (CHIP == INTEL)
@@ -77,7 +76,7 @@
 
 
 #define	TOT_STACK_SPACE		(TTY_STACK + \
-    PNP_ISA_STACK + DP8390_STACK + SCSI_STACK + \
+    	DP8390_STACK + SCSI_STACK + \
 	SYN_ALRM_STACK + IDLE_STACK + HARDWARE_STACK + PRINTER_STACK + \
 	WINCH_STACK + FLOP_STACK + MEM_STACK + CLOCK_STACK + SYS_STACK + \
 	CDROM_STACK + AUDIO_STACK + MIXER_STACK)
@@ -97,14 +96,11 @@
  *     if their initialisation has problems.
  *  2) If you add a new kernel task, add it before the printer task.
  *  3) The task name is used for the process name (p_name).
+ *  4) Modify include/minix/com.h accordingly to what is set here
  */
 
 PUBLIC struct tasktab tasktab[] = {
 	{ tty_task,		TTY_STACK,	"TTY"		},
-	{ pnp_isa_task,		PNP_ISA_STACK,	"PNP_ISA"	},
-#if ENABLE_NETWORKING
-	{ dp8390_task,		DP8390_STACK,	"DP8390"	},
-#endif
 #if ENABLE_CDROM
 	{ cdrom_task,		CDROM_STACK,	"CDROM"		},
 #endif
@@ -117,6 +113,9 @@ PUBLIC struct tasktab tasktab[] = {
 #endif
 #if ENABLE_WINI
 	{ winchester_task,	WINCH_STACK,	"WINCH"		},
+#endif
+#if ENABLE_NETWORKING
+	{ dp8390_task,		DP8390_STACK,	"DP8390"	},
 #endif
 	{ syn_alrm_task,	SYN_ALRM_STACK, "SYN_AL"	},
 	{ idle_task,		IDLE_STACK,	"IDLE"		},

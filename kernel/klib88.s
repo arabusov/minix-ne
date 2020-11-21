@@ -35,6 +35,7 @@
 .define	_mem_vid_copy	! copy data to video ram
 .define	_vid_vid_copy	! move data in video ram
 .define	_level0		! call a function at level 0
+.define _udelay20	! delay for 20 us, works only on my computer
 .define	klib_init_prot	! initialize klib functions for protected mode
 
 ! The routines only guarantee to preserve the registers the C compiler
@@ -1209,6 +1210,13 @@ p_level0:
 	int	LEVEL0_VECTOR
 	ret
 
+!*===========================================================================*
+!*				_udelay20				     *
+!*===========================================================================*
+! PUBLIC void udelay20 (void)
+! delay for 20 microseconds, a dirty hack actually, I'm using just a loop
+_udelay20:
+	ret
 
 !*===========================================================================*
 !*				data					     *

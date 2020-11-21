@@ -15,7 +15,7 @@
  * tasks.
  */
 
-#define TTY		(PNP_ISA - 1)
+#define TTY		(CDROM - 1)
 				/* terminal I/O class */
 #	define CANCEL       0	/* general req to force a task to cancel */
 #	define HARD_INT     2	/* fcn code for all hardware interrupts */
@@ -29,11 +29,6 @@
 #	define TTY_EXIT	   10	/* a process group leader has exited */	
 #	define OPTIONAL_IO 16	/* modifier to DEV_* codes within vector */
 #	define SUSPEND	 -998	/* used in interrupts when tty has no data */
-
-#define PNP_ISA		(DL_ETH - 1)
-
-#define DL_ETH		(CDROM - ENABLE_NETWORKING)
-				/* networking task */
 
 /* Message type for data link layer reqests. */
 #	define DL_WRITE		3
@@ -84,8 +79,11 @@
 #define SCSI		(WINCHESTER - ENABLE_SCSI)
 				/* scsi device task */
 
-#define WINCHESTER	(SYN_ALRM_TASK - ENABLE_WINI)
+#define WINCHESTER	(DL_ETH - ENABLE_WINI)
 				/* winchester (hard) disk class */
+
+#define DL_ETH		(SYN_ALRM_TASK - ENABLE_NETWORKING)
+				/* networking task */
 
 #define SYN_ALRM_TASK     -8	/* task to send CLOCK_INT messages */
 

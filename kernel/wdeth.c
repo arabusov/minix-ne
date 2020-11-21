@@ -15,8 +15,10 @@ INIT_ASSERT
 #if ENABLE_NETWORKING
 
 #if !__minix_vmd
-#define debug		0
+#define debug		1
 #endif
+#define DEBUG		1	
+#define SMC_CARD	1		/* Set RAM size to 0x2000 anyway */
 
 #define WET_ETHERNET	0x01		/* Ethernet transceiver */
 #define WET_STARLAN	0x02		/* Starlan transceiver */
@@ -109,7 +111,9 @@ dpeth_t *dep;
 	tlb= inb_we(dep, EPL_TLB);
 	revision= tlb & E_TLB_REV;
 	rambit= tlb & E_TLB_RAM;
-
+#if SMC_CARD
+	dep->de_ramsize = 0x2000;
+#else
 	if (revision < 2)
 	{
 		dep->de_ramsize= 0x2000;			/* 8K */
@@ -134,6 +138,7 @@ dpeth_t *dep;
 			dep->de_ramsize= rambit ? 0x8000 : 0x2000;
 		}
 	}
+#endif
 
 	if (we_type & WET_790)
 	{
@@ -247,6 +252,7 @@ dpeth_t *dep;
 
 	dep->de_startpage= i*SENDQ_PAGES;
 	dep->de_stoppage= dep->de_ramsize / DP_PAGESIZE;
+	printf ("wdeth: we_init ends here\n");
 }
 
 

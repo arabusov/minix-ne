@@ -130,6 +130,7 @@ _PROTOTYPE( void exception, (unsigned vec_nr)				);
 _PROTOTYPE( irq_handler_t get_irq_handler, (int irq)			);
 _PROTOTYPE( void put_irq_handler, (int irq, irq_handler_t handler)	);
 _PROTOTYPE( void intr_init, (int mine)					);
+_PROTOTYPE( void udelay20, (void)					);
 
 /* keyboard.c */
 _PROTOTYPE( void kb_init, (struct tty *tp)				);
