@@ -20,16 +20,16 @@ struct hdmap {
   { "at",	at_winchester_task	},
 #endif
 
+#if ENABLE_XT_WINI
+  { "xt",	xt_winchester_task	},
+#endif
+
 #if ENABLE_BIOS_WINI
   { "bios",	bios_winchester_task	},
 #endif
 
 #if ENABLE_ESDI_WINI
   { "esdi",	esdi_winchester_task	},
-#endif
-
-#if ENABLE_XT_WINI
-  { "xt",	xt_winchester_task	},
 #endif
 
 };
