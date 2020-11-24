@@ -596,7 +596,6 @@ dpeth_t *dep;
 	dp_confaddr(dep);
 
 	/* Initialization of the dp8390 */
-	printf ("dp8390: continue init function\n");
 	outb_reg0(dep, DP_CR, CR_PS_P0 | CR_STP | CR_DM_ABORT);
 	outb_reg0(dep, DP_IMR, 0);
 	outb_reg0(dep, DP_PSTART, dep->de_startpage);
@@ -674,10 +673,8 @@ dpeth_t *dep;
 	}
 
 	/* set the interrupt handler */
-	printf ("dp8390: prepare IRQ %d\n", dep->de_irq);
 	put_irq_handler(dep->de_irq, dp_handler);
 	enable_irq(dep->de_irq);
-	printf ("dp8390: IRQ set.\n");
 }
 
 
@@ -709,7 +706,7 @@ dpeth_t *dep;
 		/* It's all or nothing; force a panic. */
 		(void) env_parse(eakey, "?", 0, &v, 0L, 0L);
 	}
-	printf ("dp8390: DPETH0 MAC: ");
+	printf ("dpeth: DPETH0 MAC: ");
 	for (i = 0; i < 6; i++)
 		printf ("%x:", dep->de_address.ea_addr[i]);
 	printf ("\n");
