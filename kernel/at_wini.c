@@ -8,6 +8,7 @@
  *
  *
  * Changes:
+ *	23 Nov 2020 by Luke Skywalker: adding XT-CF-lite suuport
  *	13 Apr 1992 by Kees J. Bot: device dependent/independent split.
  */
 
@@ -16,25 +17,48 @@
 #include "drvlib.h"
 
 #if ENABLE_AT_WINI
-
+#define IF_IDE		0	/* standard IDE interface (ports 1f0/170) */
+#define IF_CF_XT	1	/* Compact Flash XT lite rev 4.1, no IRQ  */
 /* I/O Ports used by winchester disk controllers. */
 
 /* Read and write registers */
+#if IF_IDE
 #define REG_BASE0	0x1F0	/* base register of controller 0 */
 #define REG_BASE1	0x170	/* base register of controller 1 */
+#elif IF_CF_XT
+#define REG_BASE	0x320	/* Must coincide with the card sw1--3 */
+#endif /* IF_IDE */
 #define REG_DATA	    0	/* data register (offset from the base reg.) */
+#if IF_IDE
 #define REG_PRECOMP	    1	/* start of write precompensation */
 #define REG_COUNT	    2	/* sectors to transfer */
 #define REG_SECTOR	    3	/* sector number */
 #define REG_CYL_LO	    4	/* low byte of cylinder number */
 #define REG_CYL_HI	    5	/* high byte of cylinder number */
 #define REG_LDH		    6	/* lba, drive and head */
-#define   LDH_DEFAULT		0xA0	/* ECC enable, 512 bytes per sector */
+#elif IF_CF_XT
+#define REG_FEATURE	  2*1	/* Compact Flash feature register */
+#define REG_COUNT	  2*2	/* sectors to transfer */
+#define REG_SECTOR	  2*3	/* sector number */
+#define REG_CYL_LO	  2*4	/* low byte of cylinder number */
+#define REG_CYL_HI	  2*5	/* high byte of cylinder number */
+#define REG_LDH		  2*6	/* lba, drive and head */
+#endif /* IF_IDE */
 #define   LDH_LBA		0x40	/* Use LBA addressing */
+#if IF_IDE
+#define   LDH_DEFAULT		0xA0	/* ECC enable, 512 bytes per sector */
+#elif IF_CF_XT
+#define	  LDH_DEFAULT		0x00	/* Nothing to declare, green zone */
+#endif /* IF_IDE */
 #define   ldh_init(drive)	(LDH_DEFAULT | ((drive) << 4))
 
 /* Read only registers */
+#if IF_IDE
 #define REG_STATUS	    7	/* status */
+#elif IF_CF_XT
+#define REG_STATUS	  2*7	/* status */
+#endif /* IF_IDE */
+
 #define   STATUS_BSY		0x80	/* controller busy */
 #define	  STATUS_RDY		0x40	/* drive ready */
 #define	  STATUS_WF		0x20	/* write fault */
@@ -43,7 +67,11 @@
 #define	  STATUS_CRD		0x04	/* corrected data */
 #define	  STATUS_IDX		0x02	/* index pulse */
 #define	  STATUS_ERR		0x01	/* error */
+#if IF_IDE
 #define REG_ERROR	    1	/* error code */
+#elif IF_CF_XT
+#define REG_ERROR	  2*1	/* CF XT error code*/
+#endif /* IF_IDE */
 #define	  ERROR_BB		0x80	/* bad block */
 #define	  ERROR_ECC		0x40	/* bad ecc bytes */
 #define	  ERROR_ID		0x10	/* id not found */
@@ -52,8 +80,12 @@
 #define	  ERROR_DM		0x01	/* no data address mark */
 
 /* Write only registers */
+#if IF_IDE
 #define REG_COMMAND	    7	/* command */
-#define   CMD_IDLE		0x00	/* for w_command: drive idle */
+#elif IF_CF_XT
+#define REG_COMMAND	  2*7	/* command */
+#endif /* IF_IDE */
+#define   ATA_IDENTIFY		0xEC	/* identify drive */
 #define   CMD_RECALIBRATE	0x10	/* recalibrate drive */
 #define   CMD_READ		0x20	/* read data */
 #define   CMD_WRITE		0x30	/* write data */
@@ -62,21 +94,33 @@
 #define   CMD_SEEK		0x70	/* seek cylinder */
 #define   CMD_DIAG		0x90	/* execute device diagnostics */
 #define   CMD_SPECIFY		0x91	/* specify parameters */
-#define   ATA_IDENTIFY		0xEC	/* identify drive */
+#if IF_IDE
+#define   CMD_IDLE		0x00	/* for w_command: drive idle */
 #define REG_CTL		0x206	/* control register */
 #define   CTL_NORETRY		0x80	/* disable access retry */
 #define   CTL_NOECC		0x40	/* disable ecc retry */
 #define   CTL_EIGHTHEADS	0x08	/* more than eight heads */
 #define   CTL_RESET		0x04	/* reset controller */
 #define   CTL_INTDISABLE	0x02	/* disable interrupts */
-
+#elif IF_CF_XT
+#define   CMD_IDLE		0xE3	/* for w_command: drive idle */
+#define REG_CTL		 0x06		/* control register (see PCB scm) */
+#define   CTL_RESET		0x04	/* reset controller */
+#define   CTL_INTDISABLE	0x02	/* disable interrupts */
+#endif /* IF_IDE */
 /* Interrupt request lines. */
+#if IF_IDE
 #define AT_IRQ0		14	/* interrupt number for controller 0 */
 #define AT_IRQ1		15	/* interrupt number for controller 1 */
+#endif /* IF_IDE */
 
 /* Common command block */
 struct command {
+#if IF_IDE
   u8_t	precomp;	/* REG_PRECOMP, etc. */
+#elif IF_CF_XT
+  u8_t  feature;	/* REG_FEATURE, etc */
+#endif /* IF_IDE */
   u8_t	count;
   u8_t	sector;
   u8_t	cyl_lo;
@@ -84,7 +128,6 @@ struct command {
   u8_t	ldh;
   u8_t	command;
 };
-
 
 /* Error codes */
 #define ERR		 (-1)	/* general error */
@@ -94,12 +137,16 @@ struct command {
 #define WAKEUP		(32*HZ)	/* drive may be out for 31 seconds max */
 
 /* Miscellaneous. */
-#define MAX_DRIVES         4	/* this driver supports 2 drives (hd0 - hd9) */
+#if IF_IDE
+#define MAX_DRIVES         4	/* this driver supports 4 drives (hd0 - hd19) */
+#elif IF_CF_XT
+#define MAX_DRIVES	   2	/* Set to 2 up to now */
+#endif /* IF_IDE */
 #if _WORD_SIZE > 2
 #define MAX_SECS	 256	/* controller can transfer this many sectors */
 #else
 #define MAX_SECS	 127	/* but not to a 16 bit process */
-#endif
+#endif /* _WORD_SIZE */
 #define MAX_ERRORS         4	/* how often to try rd/wt before quitting */
 #define NR_DEVICES      (MAX_DRIVES * DEV_PER_DRIVE)
 #define SUB_PER_DRIVE	(NR_PARTITIONS * NR_PARTITIONS)
@@ -123,7 +170,11 @@ PRIVATE struct wini {		/* main drive struct, one entry per drive */
   unsigned pheads;		/* physical number of heads */
   unsigned psectors;		/* physical number of sectors per track */
   unsigned ldhpref;		/* top four bytes of the LDH (head) register */
+#if IF_IDE
   unsigned precomp;		/* write precompensation cylinder / 4 */
+#elif IF_CF_XT
+  unsigned feature;		/* CF feature reg */
+#endif /* IF_IDE */
   unsigned max_count;		/* max request for this drive */
   unsigned open_ct;		/* in-use count */
   struct device part[DEV_PER_DRIVE];    /* primary partitions: hd[0-4] */
@@ -185,7 +236,7 @@ PRIVATE struct driver w_dtab = {
 
 #if ENABLE_ATAPI
 #include "atapi.c"	/* extra code for ATAPI CD-ROM */
-#endif
+#endif /* ENABLE_ATAPI */
 
 
 /*===========================================================================*
@@ -217,7 +268,6 @@ PRIVATE void init_params()
   /* Get the number of drives from the BIOS data area */
   phys_copy(0x475L, param_phys, 1L);
   if ((nr_drives = params[0]) > 2) nr_drives = 2;
-  printf ("%s: found %d drives\n", w_name (), nr_drives);
 
   for (drive = 0, wn = wini; drive < MAX_DRIVES; drive++, wn++) {
 	if (drive < nr_drives) {
@@ -230,12 +280,15 @@ PRIVATE void init_params()
 
 		/* Copy the parameters to the structures of the drive */
 		wn->lcylinders = bp_cylinders(params);
-		wn->lheads = bp_heads(params);
+		wn->lheads = 0x0f&bp_heads(params);
 		wn->lsectors = bp_sectors(params);
+#if IF_IDE
 		wn->precomp = bp_precomp(params) >> 2;
+#endif /* IF_IDE */
 	}
-	wn->ldhpref = ldh_init(drive);
 	wn->max_count = MAX_SECS << SECTOR_SHIFT;
+#if IF_IDE
+	wn->ldhpref = ldh_init(drive);
 	if (drive < 2) {
 		/* Controller 0. */
 		wn->base = REG_BASE0;
@@ -245,6 +298,11 @@ PRIVATE void init_params()
 		wn->base = REG_BASE1;
 		wn->irq = AT_IRQ1;
 	}
+#elif IF_CF_XT
+	wn->base = REG_BASE;
+	wn->ldhpref = 0;
+	printf ("%s: set base register for CF to %X\n", w_name (), wn->base);
+#endif /* IF_IDE */
   }
 }
 
@@ -316,6 +374,7 @@ PRIVATE int w_identify()
 {
 /* Find out if a device exists, if it is an old AT disk, or a newer ATA
  * drive, a removable media device, etc.
+ * 2020-11-22: update: take some of 2.0.4 version of this function
  */
 
   struct wini *wn = w_wn;
@@ -331,20 +390,7 @@ PRIVATE int w_identify()
 			|((u32_t) id_byte(n)[2] << 16) \
 			|((u32_t) id_byte(n)[3] << 24))
 
-  /* Check if the one of the registers exists. */
-  r = in_byte(wn->base + REG_CYL_LO);
-  out_byte(wn->base + REG_CYL_LO, ~r);
-  if (in_byte(wn->base + REG_CYL_LO) == r) 
-  {
-	printf ("No ATA registers exist\n");
-	printf ("Try set hd variable in boot monitor to bios\n");
-	return(ERR);
-  }
-
-  /* Looks OK; register IRQ and try an ATA identify command. */
-  put_irq_handler(wn->irq, w_handler);
-  enable_irq(wn->irq);
-
+  /* Try to identify the device */
   cmd.ldh     = wn->ldhpref;
   cmd.command = ATA_IDENTIFY;
   if (com_simple(&cmd) == OK) {
@@ -381,31 +427,37 @@ PRIVATE int w_identify()
 			wn->lcylinders /= 2;
 		}
 	}
+  /* Here should be ATAPI implementation, but I'm lazy */
   } else {
 	/* Not an ATA device; no translations, no special features.  Don't
 	 * touch it unless the BIOS knows about it.
 	 */
-	if (wn->lcylinders == 0) return(ERR);	/* no BIOS parameters */
-	wn->pcylinders = wn->lcylinders;
-	wn->pheads = wn->lheads;
-	wn->psectors = wn->lsectors;
-	size = (u32_t) wn->pcylinders * wn->pheads * wn->psectors;
+	return(ERR);
   }
-  /* The fun ends at 4 GB. */
+  /* The fun ends at 4 GB, don't use such a disk in MINIX, it's mini  */
   if (size > ((u32_t) -1) / SECTOR_SIZE) size = ((u32_t) -1) / SECTOR_SIZE;
 
   /* Base and size of the whole drive */
   wn->part[0].dv_base = 0;
   wn->part[0].dv_size = size << SECTOR_SHIFT;
-
+#if IF_IDE
+  /* if you want to kill your disk you are welcome
+	to issue this command twice */
   if (w_specify() != OK && w_specify() != OK) return(ERR);
+#endif /* IF_IDE */
 
   printf("%s: ", w_name());
   if (wn->state & SMART) {
-	printf("%.40s\n", id_string);
-  } else {
-	printf("%ux%ux%u\n", wn->pcylinders, wn->pheads, wn->psectors);
+	printf("%.40s, CHS: ", id_string);
   }
+  printf("%ux%ux%u\n", wn->pcylinders, wn->pheads, wn->psectors);
+  /* Looks OK; register IRQ and try an ATA identify command. */
+#if IF_IDE
+  put_irq_handler(wn->irq, w_handler);
+  enable_irq(wn->irq);
+#elif IF_CF_XT	/* yeah, the interrupt wire is not soldered */
+  out_byte (wn->base + REG_CTL, CTL_INTDISABLE); /* bit2 = 0, bit1=0 */ 
+#endif /* IF_IDE */
   return(OK);
 }
 
@@ -443,7 +495,10 @@ PRIVATE int w_specify()
   if ((wn->state & DEAF) && w_reset() != OK) return(ERR);
 
   /* Specify parameters: precompensation, number of heads and sectors. */
+#if IF_IDE
   cmd.precomp = wn->precomp;
+#endif /* IF_IDE */
+  /* for CF: feature register is ignored */
   cmd.count   = wn->psectors;
   cmd.ldh     = w_wn->ldhpref | (wn->pheads - 1);
   cmd.command = CMD_SPECIFY;		/* Specify some parameters */
@@ -575,7 +630,10 @@ PRIVATE int w_finish()
 			return(tp->iop->io_nbytes = EIO);
 
 		/* Tell the controller to transfer w_count bytes */
+#if IF_IDE
 		cmd.precomp = wn->precomp;
+#endif /* IF_IDE */
+		/* No feature */
 		cmd.count   = (w_count >> SECTOR_SHIFT) & BYTE;
 		if (wn->ldhpref & LDH_LBA) {
 			cmd.sector  = (tp->block >>  0) & 0xFF;
@@ -682,7 +740,7 @@ struct command *cmd;		/* Command block */
   unsigned base = wn->base;
 
   if (!waitfor(STATUS_BSY, 0)) {
-	printf("%s: controller not ready\n", w_name());
+	printf("%s: controller 0x%X not ready\n", w_name(), base);
 	return(ERR);
   }
 
@@ -697,8 +755,12 @@ struct command *cmd;		/* Command block */
   /* Schedule a wakeup call, some controllers are flaky. */
   clock_mess(WAKEUP, w_timeout);
 
+#if IF_IDE
   out_byte(base + REG_CTL, wn->pheads >= 8 ? CTL_EIGHTHEADS : 0);
   out_byte(base + REG_PRECOMP, cmd->precomp);
+#elif IF_CF_XT
+  out_byte(base + REG_FEATURE, cmd->feature);
+#endif /* IF_IDE */
   out_byte(base + REG_COUNT, cmd->count);
   out_byte(base + REG_SECTOR, cmd->sector);
   out_byte(base + REG_CYL_LO, cmd->cyl_lo);
@@ -752,6 +814,7 @@ struct command *cmd;		/* Command block */
   int r;
 
   if ((r = com_out(cmd)) == OK) r = w_intr_wait();
+
   w_command = CMD_IDLE;
   return(r);
 }
@@ -833,9 +896,12 @@ PRIVATE int w_intr_wait()
 
   message mess;
   int r;
+  unsigned counter;	/* Needed for CF_XT only */
 
+#if IF_IDE
   /* Wait for an interrupt that sets w_status to "not busy". */
-  while (w_status & STATUS_BSY) receive(HARDWARE, &mess);
+  while (w_status & STATUS_BSY)
+	receive(HARDWARE, &mess);
 
   /* Check status. */
   lock();
@@ -850,9 +916,30 @@ PRIVATE int w_intr_wait()
   	r = ERR;		/* any other error */
   }
   unlock();
+#elif IF_CF_XT
+  /*			Polling
+   * CF IRQ wire is not connected, so just wait
+   * The idea is stolen from XTIDE Un. BIOS (Src/Device/IDE/IdeWait) */
+  clock_mess(1, w_timeout); /* Set timeout to 1 second */
+  do {
+  /* For faster machines here should be a delay ~ 100--500 ns */
+	w_status = in_byte (w_wn->base + REG_STATUS);
+  }
+  while (w_status & STATUS_BSY);
+  lock ();
+  if ((w_status & (STATUS_ERR | STATUS_WF | STATUS_DRQ)) == STATUS_DRQ) {
+	w_status |= STATUS_BSY;
+	r = OK;
+  } else
+  if ((w_status & STATUS_ERR) && (in_byte(w_wn->base + REG_ERROR) & ERROR_BB)) {
+  	r = ERR_BAD_SECTOR;	/* sector marked bad, retries won't help */
+  } else {
+  	r = ERR;		/* any other error */
+  }
+  unlock();
+#endif /* IF_IDE */
   return(r);
 }
-
 
 /*==========================================================================*
  *				w_waitfor				    *
@@ -871,7 +958,7 @@ int value;			/* required status */
   } while (milli_elapsed(&ms) < TIMEOUT);
 
   w_need_reset();	/* Controller gone deaf. */
-  return(0);
+  return 0;
 }
 
 
