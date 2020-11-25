@@ -301,7 +301,6 @@ PRIVATE void init_params()
 #elif IF_CF_XT
 	wn->base = REG_BASE;
 	wn->ldhpref = 0;
-	printf ("%s: set base register for CF to %X\n", w_name (), wn->base);
 #endif /* IF_IDE */
   }
 }
@@ -444,6 +443,8 @@ PRIVATE int w_identify()
   /* if you want to kill your disk you are welcome
 	to issue this command twice */
   if (w_specify() != OK && w_specify() != OK) return(ERR);
+#elif IF_CF_XT
+	wn->state |= INITIALIZED;
 #endif /* IF_IDE */
 
   printf("%s: ", w_name());
@@ -626,9 +627,14 @@ PRIVATE int w_finish()
 		/* The controller must be (re)programmed. */
 
 		/* First check to see if a reinitialization is needed. */
-		if (!(wn->state & INITIALIZED) && w_specify() != OK)
+		if (!(wn->state & INITIALIZED))
+		{
+			printf ("%s: check if is initialized\n", w_name ());
+#if IF_IDE /* For CF we go into error immediately */
+			if (w_specify() != OK) /* There's a hope for IDE */
+#endif /* IF_IDE */
 			return(tp->iop->io_nbytes = EIO);
-
+		}
 		/* Tell the controller to transfer w_count bytes */
 #if IF_IDE
 		cmd.precomp = wn->precomp;
@@ -651,8 +657,9 @@ PRIVATE int w_finish()
 			cmd.ldh     = wn->ldhpref | head;
 		}
 		cmd.command = w_opcode == DEV_WRITE ? CMD_WRITE : CMD_READ;
-
 		if ((r = com_out(&cmd)) != OK) {
+			printf ("%s: error sending command %X\n", w_name (),
+				cmd.command);
 			if (++errors == MAX_ERRORS) {
 				w_command = CMD_IDLE;
 				return(tp->iop->io_nbytes = EIO);
@@ -880,9 +887,13 @@ PRIVATE int w_reset()
 
   /* The error register should be checked now, but some drives mess it up. */
 
-  for (wn = wini; wn < &wini[MAX_DRIVES]; wn++) {
-	if (wn->base == w_wn->base) wn->state &= ~DEAF;
-  }
+  for (wn = wini; wn < &wini[MAX_DRIVES]; wn++)
+	if (wn->base == w_wn->base) {
+		wn->state &= ~DEAF;
+#if IF_CF_XT
+		wn->state |= INITIALIZED;
+#endif /* IF_CF_XT */
+  	}
   return(OK);
 }
 
@@ -920,7 +931,7 @@ PRIVATE int w_intr_wait()
   /*			Polling
    * CF IRQ wire is not connected, so just wait
    * The idea is stolen from XTIDE Un. BIOS (Src/Device/IDE/IdeWait) */
-  clock_mess(1, w_timeout); /* Set timeout to 1 second */
+  clock_mess(WAKEUP, w_timeout); /* Set timeout to standard */
   do {
   /* For faster machines here should be a delay ~ 100--500 ns */
 	w_status = in_byte (w_wn->base + REG_STATUS);
@@ -931,14 +942,10 @@ PRIVATE int w_intr_wait()
 	w_status |= STATUS_BSY;
 	r = OK;
   } else
-  if ((w_status & STATUS_ERR) && (in_byte(w_wn->base + REG_ERROR) & ERROR_BB)) {
-  	r = ERR_BAD_SECTOR;	/* sector marked bad, retries won't help */
-  } else {
   	r = ERR;		/* any other error */
-  }
   unlock();
 #endif /* IF_IDE */
-  return(r);
+  return r;
 }
 
 /*==========================================================================*

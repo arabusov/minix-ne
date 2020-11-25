@@ -15,9 +15,9 @@ INIT_ASSERT
 #if ENABLE_NETWORKING
 
 #if !__minix_vmd
-#define debug		1
+#define debug		0	
 #endif
-#define DEBUG		1	
+#define DEBUG		0	
 #define SMC_CARD	1		/* Set RAM size to 0x2000 anyway */
 
 #define WET_ETHERNET	0x01		/* Ethernet transceiver */
@@ -252,7 +252,6 @@ dpeth_t *dep;
 
 	dep->de_startpage= i*SENDQ_PAGES;
 	dep->de_stoppage= dep->de_ramsize / DP_PAGESIZE;
-	printf ("wdeth: we_init ends here\n");
 }
 
 

@@ -706,10 +706,6 @@ dpeth_t *dep;
 		/* It's all or nothing; force a panic. */
 		(void) env_parse(eakey, "?", 0, &v, 0L, 0L);
 	}
-	printf ("dpeth: DPETH0 MAC: ");
-	for (i = 0; i < 6; i++)
-		printf ("%x:", dep->de_address.ea_addr[i]);
-	printf ("\n");
 }
 
 
@@ -1600,7 +1596,6 @@ dpeth_t *dep;
 
 	dep->de_flags = DEF_EMPTY;
 	dep->de_stat = empty_stat;
-	printf ("dp8390: conf_hw ends here\n");
 }
 
 

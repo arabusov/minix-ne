@@ -910,7 +910,7 @@ PRIVATE void w_init()
 		}
 
 		/* save the parameter tables for later use */
-		copy_param(&tmp_buf[AUTO_PARAM], &wini[drive]);
+		copy_param((char*)&tmp_buf[AUTO_PARAM], &wini[drive]);
 	}
   }
 #endif
