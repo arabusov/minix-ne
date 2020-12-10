@@ -52,7 +52,9 @@ during scrolling.
 ## Bug list
   1. ~~Not-wiped last line during scrolling.~~
   2. ~~Monochrome display doesn't change the cursor position~~
-  3. TTY driver doesn't work in parallel for different screens
+  3. ~~TTY driver doesn't work in parallel for different screens~~ not a bug
 ## TODO list
-  1. ~~Networking~~ done in f2a0b34
-  2. ~~Compact Flash driver~~ done in f2a0b34
+  1. ~~Networking~~ done in
+     [f2a0b34](https://github.com/arabusov/minix-ne/commit/f2a0b34260c62cf886e5ca8a676f9d50a3475e02)
+  2. ~~Compact Flash driver~~ done in
+     [f2a0b34](https://github.com/arabusov/minix-ne/commit/f2a0b34260c62cf886e5ca8a676f9d50a3475e02)
