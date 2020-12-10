@@ -54,5 +54,5 @@ during scrolling.
   2. ~~Monochrome display doesn't change the cursor position~~
   3. TTY driver doesn't work in parallel for different screens
 ## TODO list
-  1. Networking
-  2. Compact Flash driver
+  1. ~~Networking~~ done in f2a0b34
+  2. ~~Compact Flash driver~~ done in f2a0b34
