@@ -18,6 +18,7 @@ all:	\
 	uk.map \
 	us-std.map \
 	us-swap.map \
+	dvrk.my.map
 
 install:	\
 	/usr/lib/keymaps \
@@ -31,6 +32,7 @@ install:	\
 	/usr/lib/keymaps/uk.map \
 	/usr/lib/keymaps/us-std.map \
 	/usr/lib/keymaps/us-swap.map \
+	/usr/lib/keymaps/dvrk.my.map
 
 clean:
 	rm -f a.out *.map
@@ -66,4 +68,7 @@ clean:
 	install -c $? $@
 
 /usr/lib/keymaps/us-swap.map:	us-swap.map
+	install -c $? $@
+
+/usr/lib/keymaps/dvrk.my.map:	dvrk.my.map
 	install -c $? $@
