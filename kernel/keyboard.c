@@ -189,6 +189,18 @@ tty_t *tp;
 	/* Perform make/break processing. */
 	ch = make_break(scode);
 
+	if (ch == C('C')) {
+		/* Interrupt process in the current console */
+  		sigchar(tp, SIGINT);
+	} else
+	if (ch == C('Z')) {
+		/* Stop process in the current console */
+  		sigchar(tp, SIGSTOP);
+	} else
+	if (ch == C('\\')) {
+		/* Quit process in the current console */
+  		sigchar(tp, SIGQUIT);
+	} else
 	if (ch <= 0xFF) {
 		/* A normal character. */
 		buf[0] = ch;
@@ -421,6 +433,8 @@ int scode;			/* scan code for a function key */
 #if ENABLE_NETWORKING
   case F5:	dp_dump(); break;		/* network statistics */
 #endif
+  case F10:	toggle_beeping(); break; /* Toggle the ability to beep on 007 */
+/* Keep compatible with MINIX */
   case CF7:	sigchar(&tty_table[CONSOLE], SIGQUIT); break;
   case CF8:	sigchar(&tty_table[CONSOLE], SIGINT); break;
   case CF9:	sigchar(&tty_table[CONSOLE], SIGKILL); break;

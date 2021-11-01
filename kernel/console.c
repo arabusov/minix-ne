@@ -61,6 +61,7 @@
 /* Private variables used by the console driver. */
 PRIVATE int vid_port;		/* I/O port for accessing 6845 */
 PRIVATE int softscroll;		/* 1 = software scrolling, 0 = hardware */
+PRIVATE int annoying_beep=1;	/* 1 = annoy people, 0 = make them happy */
 PRIVATE int beeping;		/* speaker is beeping? */
 /* Data per a physical screen */
 typedef struct video {
@@ -228,7 +229,9 @@ int c;				/* character to be output */
 
 	case 007:		/* ring the bell */
 		flush(cons);	/* print any chars queued for output */
-		beep();
+		if (annoying_beep) {
+			beep();
+		}
 		return;
 
 	case '\b':		/* backspace */
@@ -904,6 +907,14 @@ int c;				/* character to print */
   }
 }
 
+/*===========================================================================*
+ *				toggle_scroll				     *
+ *===========================================================================*/
+PUBLIC void toggle_beeping()
+{
+	/* Toggle between beeping and not beeping */
+	annoying_beep = !annoying_beep;
+}
 
 /*===========================================================================*
  *				toggle_scroll				     *
