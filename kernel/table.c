@@ -64,6 +64,7 @@
 #define	SCSI_STACK	(2 * SMALL_STACK * ENABLE_SCSI)
 #endif
 
+#define FBDEV_STACK	(4 * SMALL_STACK * ENABLE_FBDEV)
 #define CDROM_STACK	(4 * SMALL_STACK * ENABLE_CDROM)
 #define AUDIO_STACK	(4 * SMALL_STACK * ENABLE_AUDIO)
 #define MIXER_STACK	(4 * SMALL_STACK * ENABLE_AUDIO)
@@ -79,7 +80,7 @@
     	DP8390_STACK + SCSI_STACK + \
 	SYN_ALRM_STACK + IDLE_STACK + HARDWARE_STACK + PRINTER_STACK + \
 	WINCH_STACK + FLOP_STACK + MEM_STACK + CLOCK_STACK + SYS_STACK + \
-	CDROM_STACK + AUDIO_STACK + MIXER_STACK)
+	FBDEV_STACK + CDROM_STACK + AUDIO_STACK + MIXER_STACK)
 
 
 /* SCSI, CDROM and AUDIO may in the future have different choices like
@@ -101,6 +102,9 @@
 
 PUBLIC struct tasktab tasktab[] = {
 	{ tty_task,		TTY_STACK,	"TTY"		},
+#if ENABLE_FBDEV
+	{ fbdev_task,		FBDEV_STACK,	"FBDEV"		},
+#endif
 #if ENABLE_CDROM
 	{ cdrom_task,		CDROM_STACK,	"CDROM"		},
 #endif

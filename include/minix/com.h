@@ -15,7 +15,7 @@
  * tasks.
  */
 
-#define TTY		(CDROM - 1)
+#define TTY		(FBDEV - 1)
 				/* terminal I/O class */
 #	define CANCEL       0	/* general req to force a task to cancel */
 #	define HARD_INT     2	/* fcn code for all hardware interrupts */
@@ -69,6 +69,8 @@
 #	define NW_IOCTL		DEV_IOCTL
 #	define NW_CANCEL	CANCEL
 
+#define	FBDEV		(CDROM - ENABLE_FBDEV)
+				/* frame buffer device task */
 #define CDROM		(AUDIO - ENABLE_CDROM)
 				/* cd-rom device task */
 

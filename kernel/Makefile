@@ -20,9 +20,9 @@ HEAD =	mpx.o
 OBJS =	start.o protect.o klib.o table.o main.o proc.o \
 	exception.o system.o clock.o memory.o tty.o keyboard.o \
 	console.o i8259.o rs232.o dmp.o misc.o driver.o \
-	drvlib.o floppy.o wini.o at_wini.o bios_wini.o \
-	xt_wini.o printer.o aha_scsi.o dp8390.o pty.o \
-	wdeth.o ne2000.o mcd.o sb16_dsp.o sb16_mixer.o
+	drvlib.o floppy.o dp8390.o wdeth.o ne2000.o wini.o \
+	at_wini.o at_test.o xt_wini.o bios_wini.o \
+	printer.o aha_scsi.o pty.o fbdev.o
 
 # What to make.
 kernel: $(HEAD) $(OBJS)
@@ -166,6 +166,10 @@ tty.o:		$h/keymap.h
 tty.o:		proc.h
 tty.o:		tty.h
 
+fbdev.o:	$a
+fbdev.o:	$h/com.h
+fbdev.o:	$h/type.h
+
 aha_scsi.o:	$a $d $(dl)
 aha_scsi.o:	$i/fcntl.h
 aha_scsi.o:	$s/mtio.h
@@ -174,6 +178,7 @@ aha_scsi.o:	$s/ioctl.h
 wini.o:	$a $d $(dl)
 
 at_wini.o:	$a $d $(dl)
+at_test.o:	$a $d $(dl)
 
 bios_wini.o:	$a $d $(dl)
 
